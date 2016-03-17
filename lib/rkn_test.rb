@@ -11,7 +11,7 @@ require 'rkn_test/parse_rkn_xml'
 module RknTest
   class RknTest
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
-    
+
     def initialize(rkn_file, stop_page)
       @unknown_schemes = []
       @not_blocked_pages = []
@@ -21,7 +21,7 @@ module RknTest
       @fixed_rkn_urls = fix_scheme(parse.rkn_urls)
       test_urls
     end
-    
+
     def fix_scheme(rkn_urls)
       rkn_urls.map do |url|
         case Addressable::URI.parse(url).scheme
@@ -33,7 +33,7 @@ module RknTest
         end
       end
     end
-    
+
     def test_urls
       fixed_rkn_urls.each do |url|
         next unless page = get_url_page(url)
@@ -41,7 +41,7 @@ module RknTest
         not_blocked_pages.push(url) unless titles_equal?(page_title)
       end
     end
-    
+
     def get_url_page(url)
       begin
         Timeout.timeout(1) do
@@ -63,7 +63,7 @@ module RknTest
       page_title == stop_page_title
     end
   end
-    
+
   my_test = RknTest.new('/home/alisa/dump_line.xml', 'http://forbidden.page')
   print my_test.unknown_schemes
 end
