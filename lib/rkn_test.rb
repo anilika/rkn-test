@@ -1,3 +1,4 @@
+#! /usr/bin/ruby
 require 'rkn_test/version'
 
 require 'timeout'
@@ -6,18 +7,23 @@ require 'addressable/uri'
 require 'open_uri_redirections'
 
 require 'rkn_test/parse_rkn_xml'
+require 'rkn_test/rkn_downloader'
+require 'rkn_test/options'
 
 
 module RknTest
   class RknTest
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
+    attr_accessor :rkn_urls
 
-    def initialize(rkn_file, stop_page)
+    def initialize
+      options = Options.new
       @unknown_schemes = []
       @not_blocked_pages = []
-      @stop_page = stop_page
+      @stop_page = options.stop_page
       @stop_page_title = get_page_title(get_url_page(stop_page))
-      parse = RknParser.new(rkn_file)
+      download_dump = RknDownloader.new(options.request_file, options.signature_file)
+      parse = RknParser.new(download_dump.rkn_dump_path)
       @fixed_rkn_urls = fix_scheme(parse.rkn_urls)
       test_urls
     end
@@ -28,6 +34,7 @@ module RknTest
         when nil
           url = "http://" + url
         when 'http', 'https'
+          url
         else
           @unknown_schemes.push(url)
         end
@@ -56,14 +63,15 @@ module RknTest
     end
 
     def get_page_title(page)
-      page.css('title').text
+      begin
+        page.css('title').text
+      rescue NoMethodError
+        abort "Stop page #{page} does not respond"
+      end
     end
 
     def titles_equal?(page_title)
       page_title == stop_page_title
     end
   end
-
-  my_test = RknTest.new('/home/alisa/dump_line.xml', 'http://forbidden.page')
-  print my_test.unknown_schemes
 end

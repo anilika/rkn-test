@@ -19,8 +19,10 @@ module RknTest
           content.xpath('url').each do |url|
             @rkn_urls.push(url.text)
           end
-        else
-          @rkn_urls.push(content.xpath('domain').text)
+        elsif content.at_xpath('domain')
+          content.xpath('domain').each do |domain|
+            @rkn_urls.push(domain.text)
+          end
         end
       end
     end

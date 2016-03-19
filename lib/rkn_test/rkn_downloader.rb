@@ -61,7 +61,11 @@ module RknTest
     end
 
     def encode64(file)
-      Base64.encode64(File.read(file))
+      begin
+        Base64.encode64(File.read(file))
+      rescue Errno::ENOENT => e
+        abort "#{e}"
+      end
     end
 
     def decode64(data)
@@ -69,6 +73,6 @@ module RknTest
     end
   end
 
-  n = RknDownloader.new('Development/rkn-reg/req.xml', 'Development/rkn-reg/req.xml.sig')
-  puts n.rkn_dump_path
+  #n = RknDownloader.new('Development/rkn-reg/req.xml', 'Development/rkn-reg/req.xml.sig')
+  #puts n.rkn_dump_path
 end

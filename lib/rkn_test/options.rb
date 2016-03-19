@@ -1,7 +1,7 @@
 require 'optparse'
 
 module RknTest
-  class Options 
+  class Options
     attr_reader :options
     def initialize
       @options = {}
@@ -13,11 +13,11 @@ module RknTest
         self.instance_variable_set "@#{k}", v
       end
     end
-    
+
     def parse_args
       optparse = OptionParser.new do |opts|
         opts.banner = "Required options: -f, -r, -s"
-        
+
         opts.on("-f", "--forbidden FORBIDDEN", "Url forbidden page") do |forbidden|
           options[:stop_page] =  forbidden
         end
@@ -40,7 +40,7 @@ module RknTest
       end
       begin
         optparse.parse!
-        mandatory = [:stop_page, :request_file, :signature_file] 
+        mandatory = [:stop_page, :request_file, :signature_file]
         missing = mandatory.select { |param| options[param].nil? }
         unless missing.empty?
           puts "Missing options: #{missing.join(', ')}"
@@ -51,7 +51,7 @@ module RknTest
         puts $!.to_s
         puts optparse
         exit
-      end     
+      end
     end
   end
 end
