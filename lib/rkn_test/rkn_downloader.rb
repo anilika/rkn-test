@@ -72,7 +72,4 @@ module RknTest
       Base64.decode64(data)
     end
   end
-
-  #n = RknDownloader.new('Development/rkn-reg/req.xml', 'Development/rkn-reg/req.xml.sig')
-  #puts n.rkn_dump_path
 end

@@ -6,38 +6,39 @@ module RknTest
     def initialize
       @options = {}
       parse_args
-      options.each do |k, v|
+      options.each do |attr, value|
         self.class.class_eval do
-          attr_accessor k
+          attr_accessor attr
         end
-        self.instance_variable_set "@#{k}", v
+        instance_variable_set "@#{attr}", value
       end
     end
 
     def parse_args
       optparse = OptionParser.new do |opts|
-        opts.banner = "Required options: -f, -r, -s"
+        opts.banner = 'Mandatory options: --stop_page, --request_file, --signature_file'
 
-        opts.on("-f", "--forbidden FORBIDDEN", "Url forbidden page") do |forbidden|
-          options[:stop_page] =  forbidden
+        opts.on('-p', '--stop_page STOP_PAGE', 'Url of stop page') do |page|
+          options[:stop_page] = page
         end
-        opts.on("-r", "--request_file REQUEST_FILE", "Request file for upload") do |request|
+        opts.on('-r', '--request_file REQUEST_FILE', 'Request file path') do |request|
           options[:request_file] = request
         end
-        opts.on("-s", "--signature SIGNATURE", "Detached electronic signature") do |signature|
+        opts.on('-s', '--signature SIGNATURE', 'Detached electronic signature file path') do |signature|
           options[:signature_file] = signature
         end
-        opts.on("-d", "--dump_path DUMP_PATH", "Specify where to save dump") do |dump|
+        opts.on('-d', '--dump_path DUMP_PATH', 'Specify where to save xml dump') do |dump|
           options[:rkn_dump_path] = dump
         end
-        opts.on("-a", "--archive_path ARCHIVE_PATH", "Specify where to save archive") do |archive|
+        opts.on('-a', '--archive_path ARCHIVE_PATH', 'Specify where to save archive') do |archive|
           options[:rkn_archive_path] = archive
         end
-        opts.on("-h", "--help", "Prints this help") do
+        opts.on('-h', '--help', 'Prints this help') do
           puts opts
           exit
         end
       end
+
       begin
         optparse.parse!
         mandatory = [:stop_page, :request_file, :signature_file]
@@ -47,8 +48,8 @@ module RknTest
           puts optparse
           exit
         end
-      rescue OptionParser::InvalidOption, OptionParser::MissingArgument
-        puts $!.to_s
+      rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+        warn e.to_s.capitalize
         puts optparse
         exit
       end
