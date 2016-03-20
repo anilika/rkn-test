@@ -1,5 +1,4 @@
 #!/usr/bin/env ruby
 $LOAD_PATH.unshift File.expand_path('lib', __FILE__)
 require 'rkn_test'
-my_test = RknTest::RknTest.new
-print my_test.not_blocked_pages
+RknTest::RknTest.new

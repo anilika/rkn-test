@@ -9,10 +9,12 @@ require 'open_uri_redirections'
 require 'rkn_test/parse_rkn_xml'
 require 'rkn_test/rkn_downloader'
 require 'rkn_test/options'
-
+require 'rkn_test/output_data'
 
 module RknTest
   class RknTest
+    include OutputData
+    
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
     attr_accessor :rkn_urls
 
@@ -26,6 +28,7 @@ module RknTest
       parse = RknParser.new(download_dump.rkn_dump_path)
       @fixed_rkn_urls = fix_scheme(parse.rkn_urls)
       test_urls
+      display({ unknown_schemes: unknown_schemes, not_blocked_pages: not_blocked_pages })
     end
 
     def fix_scheme(rkn_urls)
