@@ -46,13 +46,11 @@ module RknTest
       result = false
       until result
         response = client.call(:get_result, message: { code: queue_code })
-        case response.body[:get_result_response][:result_code].to_i
-        when 1
+        case response.body[:get_result_response][:result_code]
+        when '1'
           break
-        when 0
+        when '0'
           sleep(65)
-        when 2..100
-          abort 'Unknown result code'
         else
           abort response.body[:get_result_response][:result_comment]
         end

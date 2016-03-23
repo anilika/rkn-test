@@ -3,6 +3,7 @@ require 'rkn_test/version'
 
 require 'timeout'
 require 'nokogiri'
+require 'thread/pool'
 require 'addressable/uri'
 require 'open_uri_redirections'
 
@@ -45,11 +46,16 @@ module RknTest
     end
 
     def test_urls
-      fixed_rkn_urls.each do |url|
-        next unless page = get_url_page(url)
-        page_title = get_page_title(page)
-        not_blocked_pages.push(url) unless titles_equal?(page_title)
+      pool = Thread.pool(100)
+      pool.process do
+        fixed_rkn_urls.each do |url|
+          puts url
+          next unless page = get_url_page(url)
+          page_title = get_page_title(page)
+          not_blocked_pages.push(url) unless titles_equal?(page_title)
+        end
       end
+      pool.shutdown
     end
 
     def get_url_page(url)
