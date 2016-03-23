@@ -4,7 +4,7 @@ require 'zip'
 
 module RknTest
   class RknDownloader
-    RKN_WSDL = 'http://vigruzki.rkn.gov.ru/services/OperatorRequestTest/?wsdl'
+    RKN_WSDL = 'http://vigruzki.rkn.gov.ru/services/OperatorRequest/?wsdl'
                .freeze
 
     attr_reader :client, :request_file, :signature_file, :queue_code,
@@ -22,7 +22,7 @@ module RknTest
       @request_file = encode64(request_file)
       @signature_file = encode64(signature_file)
       @queue_code = get_rkn_queue_code(send_request)
-      @rkn_archive_data = decode64(get_base64_rkn_archive(get_rkn_queue_response))
+      @rkn_archive_data = decode64(get_rkn_queue_response)
       save_rkn_archive
       extract_rkn_xml_dump
     end
@@ -36,13 +36,30 @@ module RknTest
     end
 
     def get_rkn_queue_code(response)
+      unless response.body[:send_request_response][:result]
+        abort response.body[:send_request_response][:result_comment]
+      end
       response.body[:send_request_response][:code]
     end
 
     def get_rkn_queue_response
-      client.call(:get_result, message: { code: queue_code })
+      result = false
+      until result
+        response = client.call(:get_result, message: { code: queue_code })
+        case response.body[:get_result_response][:result_code].to_i
+        when 1
+          break
+        when 0
+          sleep(65)
+        when 2..100
+          abort 'Unknown result code'
+        else
+          abort response.body[:get_result_response][:result_comment]
+        end
+      end
+      get_base64_rkn_archive(response)
     end
-
+  
     def get_base64_rkn_archive(response)
       response.body[:get_result_response][:register_zip_archive]
     end
