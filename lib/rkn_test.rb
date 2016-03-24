@@ -1,11 +1,10 @@
 #! /usr/bin/ruby
 require 'rkn_test/version'
 
-require 'timeout'
+require 'http'
 require 'nokogiri'
 require 'thread/pool'
 require 'addressable/uri'
-require 'open_uri_redirections'
 
 require 'rkn_test/parse_rkn_xml'
 require 'rkn_test/rkn_downloader'
@@ -15,7 +14,7 @@ require 'rkn_test/output_data'
 module RknTest
   class RknTest
     include OutputData
-    
+
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
     attr_accessor :rkn_urls
 
@@ -24,19 +23,26 @@ module RknTest
       @unknown_schemes = []
       @not_blocked_pages = []
       @stop_page = options.stop_page
-      @stop_page_title = get_page_title(get_url_page(stop_page))
+      @stop_page_title = get_stop_page_title
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
       parse = RknParser.new(download_dump.rkn_dump_path)
       @fixed_rkn_urls = fix_scheme(parse.rkn_urls)
       test_urls
-      display({ unknown_schemes: unknown_schemes, not_blocked_pages: not_blocked_pages })
+      display(unknown_schemes: unknown_schemes, not_blocked_pages: not_blocked_pages)
+    end
+
+    def get_stop_page_title
+      page = get_url_page(stop_page)
+      abort "Stop page #{page} does not respond" unless page
+      stop_page_title = get_page_title(page)
+      abort 'Stop page title is empty' if stop_page_title.empty?
     end
 
     def fix_scheme(rkn_urls)
       rkn_urls.map do |url|
         case Addressable::URI.parse(url).scheme
         when nil
-          url = "http://" + url
+          'http://' + url
         when 'http', 'https'
           url
         else
@@ -47,8 +53,8 @@ module RknTest
 
     def test_urls
       pool = Thread.pool(100)
-      pool.process do
-        fixed_rkn_urls.each do |url|
+      fixed_rkn_urls.each do |url|
+        pool.process do
           puts url
           next unless page = get_url_page(url)
           page_title = get_page_title(page)
@@ -60,10 +66,12 @@ module RknTest
 
     def get_url_page(url)
       begin
-        Timeout.timeout(1) do
-          Nokogiri::HTML(open(url, :allow_redirections => :all))
-        end
-      rescue Timeout::Error, SocketError, Errno::ECONNRESET, Errno::ECONNREFUSED
+        http_client = Http.follow(true)
+        Nokogiri::HTML(http_client
+                       .timeout(:global, write: 1, connect: 1, read: 1)
+                       .get(url)
+                       .to_s)
+      rescue HTTP::TimeoutError, SocketError, Errno::ECONNRESET, Errno::ECONNREFUSED
         false
       rescue StandardError
         @not_blocked_pages.push(url)
@@ -72,11 +80,7 @@ module RknTest
     end
 
     def get_page_title(page)
-      begin
-        page.css('title').text
-      rescue NoMethodError
-        abort "Stop page #{page} does not respond"
-      end
+      page.css('title').text
     end
 
     def titles_equal?(page_title)
