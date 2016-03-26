@@ -1,7 +1,7 @@
 #! /usr/bin/ruby
 require 'rkn_test/version'
 
-require 'http'
+require 'curb'
 require 'nokogiri'
 require 'thread/pool'
 require 'addressable/uri'
@@ -53,10 +53,14 @@ module RknTest
 
     def test_urls
       pool = Thread.pool(100)
+      http_client = Curl::Easy.new
+      http_client.timeout = 3
+      http_client.connect_timeout = 3
+      http_client.follow_location = true
       fixed_rkn_urls.each do |url|
         pool.process do
           puts url
-          next unless page = get_url_page(url)
+          next unless page = get_url_page(url, http_client)
           page_title = get_page_title(page)
           not_blocked_pages.push(url) unless titles_equal?(page_title)
         end
@@ -64,14 +68,14 @@ module RknTest
       pool.shutdown
     end
 
-    def get_url_page(url)
+    def get_url_page(url, http_client)
       begin
-        http_client = Http.follow(true)
-        Nokogiri::HTML(http_client
-                       .timeout(:global, write: 1, connect: 1, read: 1)
-                       .get(url)
-                       .to_s)
-      rescue HTTP::TimeoutError, SocketError, Errno::ECONNRESET, Errno::ECONNREFUSED
+        http_client.url = url
+        http_client.perform
+        Nokogiri::HTML(http_client.body_str)
+      rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
+        Curl::Err::ConnectionFailedError, SocketError, Errno::ECONNRESET,
+        Errno::ECONNREFUSED
         false
       rescue StandardError
         @not_blocked_pages.push(url)
