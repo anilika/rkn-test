@@ -16,12 +16,13 @@ module RknTest
     include OutputData
 
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
-    attr_accessor :rkn_urls
+    attr_accessor :rkn_urls, :http_client
 
     def initialize
       options = Options.new
       @unknown_schemes = []
       @not_blocked_pages = []
+      @http_client = config_http_client
       @stop_page = options.stop_page
       @stop_page_title = get_stop_page_title
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
@@ -50,17 +51,20 @@ module RknTest
         end
       end
     end
-
-    def test_urls
-      pool = Thread.pool(100)
+    
+    def config_http_client
       http_client = Curl::Easy.new
       http_client.timeout = 3
       http_client.connect_timeout = 3
       http_client.follow_location = true
+    end
+
+    def test_urls
+      pool = Thread.pool(100)
       fixed_rkn_urls.each do |url|
         pool.process do
           puts url
-          next unless page = get_url_page(url, http_client)
+          next unless page = get_url_page(url)
           page_title = get_page_title(page)
           not_blocked_pages.push(url) unless titles_equal?(page_title)
         end
@@ -68,7 +72,7 @@ module RknTest
       pool.shutdown
     end
 
-    def get_url_page(url, http_client)
+    def get_url_page(url)
       begin
         http_client.url = url
         http_client.perform
