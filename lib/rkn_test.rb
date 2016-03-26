@@ -34,7 +34,7 @@ module RknTest
 
     def get_stop_page_title
       page = get_url_page(stop_page)
-      abort "Stop page #{page} does not respond" unless page
+      abort "Stop page does not respond" unless page
       stop_page_title = get_page_title(page)
       abort 'Stop page title is empty' if stop_page_title.empty?
     end
@@ -57,6 +57,7 @@ module RknTest
       http_client.timeout = 3
       http_client.connect_timeout = 3
       http_client.follow_location = true
+      http_client
     end
 
     def test_urls
@@ -76,6 +77,7 @@ module RknTest
       begin
         http_client.url = url
         http_client.perform
+        http_client.body_str
         Nokogiri::HTML(http_client.body_str)
       rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
         Curl::Err::ConnectionFailedError, SocketError, Errno::ECONNRESET,
