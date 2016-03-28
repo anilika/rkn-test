@@ -16,18 +16,18 @@ module RknTest
     include OutputData
 
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
-    attr_accessor :rkn_urls, :http_client
+    attr_accessor :rkn_urls
 
     def initialize
       options = Options.new
       @unknown_schemes = []
       @not_blocked_pages = []
-      @http_client = config_http_client
+      @fixed_rkn_urls = []
       @stop_page = options.stop_page
       @stop_page_title = get_stop_page_title
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
       parse = RknParser.new(download_dump.rkn_dump_path)
-      @fixed_rkn_urls = fix_scheme(parse.rkn_urls)
+      fix_scheme(parse.rkn_urls)
       test_urls
       display(unknown_schemes: unknown_schemes, not_blocked_pages: not_blocked_pages)
     end
@@ -37,15 +37,16 @@ module RknTest
       abort "Stop page does not respond" unless page
       stop_page_title = get_page_title(page)
       abort 'Stop page title is empty' if stop_page_title.empty?
+      stop_page_title
     end
 
     def fix_scheme(rkn_urls)
-      rkn_urls.map do |url|
+      rkn_urls.each do |url|
         case Addressable::URI.parse(url).scheme
         when nil
-          'http://' + url
+          @fixed_rkn_urls.push('http://' + url)
         when 'http', 'https'
-          url
+          @fixed_rkn_urls.push(url)
         else
           @unknown_schemes.push(url)
         end
@@ -75,6 +76,7 @@ module RknTest
 
     def get_url_page(url)
       begin
+        http_client = config_http_client
         http_client.url = url
         http_client.perform
         http_client.body_str
