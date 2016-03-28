@@ -14,7 +14,7 @@ require 'rkn_test/output_data'
 module RknTest
   class RknTest
     EASY_OPTIONS = { follow_location: true, timeout: 3, connect_timeout: 3 }.freeze
-    MULTI_OPTIONS = { pipeline: Curl::CURLPIPE_HTTP1 }.freeze
+    MULTI_OPTIONS = { pipeline: true }.freeze
     
     include OutputData
 
@@ -67,19 +67,18 @@ module RknTest
     end
 
     def get_url_page(urls)
-      begin
-        urls.each_slice(10) do |links|
-          Curl::Multi.get(links, EASY_OPTIONS, MULTI_OPTIONS) do |url|
+      urls.each_slice(10) do |links|
+        Curl::Multi.get(links, EASY_OPTIONS, MULTI_OPTIONS) do |url|
+          begin
             yield url
+          rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
+            Curl::Err::ConnectionFailedError
+            false
+          rescue StandardError
+            not_blocked_pages.push(url.last_effective_url)
+            false
           end
         end
-      rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
-        Curl::Err::ConnectionFailedError, SocketError, Errno::ECONNRESET,
-        Errno::ECONNREFUSED
-        false
-      rescue StandardError
-        not_blocked_pages.push(url)
-        false
       end
     end
 
