@@ -13,16 +13,20 @@ require 'rkn_test/output_data'
 
 module RknTest
   class RknTest
+    EASY_OPTIONS = { follow_location: true, timeout: 3, connect_timeout: 3 }.freeze
+    MULTI_OPTIONS = { pipeline: Curl::CURLPIPE_HTTP1 }.freeze
+    
     include OutputData
 
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
-    attr_accessor :rkn_urls
+    attr_accessor :rkn_urls, :titles_urls
 
     def initialize
       options = Options.new
       @unknown_schemes = []
       @not_blocked_pages = []
       @fixed_rkn_urls = []
+      @titles_urls = {}
       @stop_page = options.stop_page
       @stop_page_title = get_stop_page_title
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
@@ -33,8 +37,9 @@ module RknTest
     end
 
     def get_stop_page_title
-      page = get_url_page(stop_page)
-      abort "Stop page does not respond" unless page
+      page = ''
+      get_url_page(stop_page) { |url| page = url.body_str }
+      abort 'Stop page does not respond' unless page
       stop_page_title = get_page_title(page)
       abort 'Stop page title is empty' if stop_page_title.empty?
       stop_page_title
@@ -52,47 +57,34 @@ module RknTest
         end
       end
     end
-    
-    def config_http_client
-      http_client = Curl::Easy.new
-      http_client.timeout = 3
-      http_client.connect_timeout = 3
-      http_client.follow_location = true
-      http_client
-    end
 
     def test_urls
-      pool = Thread.pool(100)
-      fixed_rkn_urls.each do |url|
-        pool.process do
-          puts url
-          next unless page = get_url_page(url)
-          page_title = get_page_title(page)
-          not_blocked_pages.push(url) unless titles_equal?(page_title)
-        end
+      get_url_page(fixed_rkn_urls) do |url|
+        next unless page = url.body_str
+        page_title = get_page_title(page)
+        not_blocked_pages.push(url.last_effective_url) unless titles_equal?(page_title)
       end
-      pool.shutdown
     end
 
-    def get_url_page(url)
+    def get_url_page(urls)
       begin
-        http_client = config_http_client
-        http_client.url = url
-        http_client.perform
-        http_client.body_str
-        Nokogiri::HTML(http_client.body_str)
+        urls.each_slice(10) do |links|
+          Curl::Multi.get(links, EASY_OPTIONS, MULTI_OPTIONS) do |url|
+            yield url
+          end
+        end
       rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
         Curl::Err::ConnectionFailedError, SocketError, Errno::ECONNRESET,
         Errno::ECONNREFUSED
         false
       rescue StandardError
-        @not_blocked_pages.push(url)
+        not_blocked_pages.push(url)
         false
       end
     end
 
     def get_page_title(page)
-      page.css('title').text
+      Nokogiri::HTML(page).css('title').text
     end
 
     def titles_equal?(page_title)
