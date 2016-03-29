@@ -1,6 +1,6 @@
+require 'zip'
 require 'savon'
 require 'base64'
-require 'zip'
 
 module RknTest
   class RknDownloader
@@ -29,10 +29,9 @@ module RknTest
 
     def send_request
       client.call(:send_request,
-        message: {
-          requestFile: request_file,
-          signatureFile: signature_file,
-          dumpFormatVersion: '2.2' })
+                  message: { requestFile: request_file,
+                             signatureFile: signature_file,
+                             dumpFormatVersion: '2.2' })
     end
 
     def get_rkn_queue_code(response)
@@ -57,7 +56,7 @@ module RknTest
       end
       get_base64_rkn_archive(response)
     end
-  
+
     def get_base64_rkn_archive(response)
       response.body[:get_result_response][:register_zip_archive]
     end
@@ -79,7 +78,7 @@ module RknTest
       begin
         Base64.encode64(File.read(file))
       rescue Errno::ENOENT => e
-        abort "#{e}"
+        abort e.to_s
       end
     end
 

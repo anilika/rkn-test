@@ -3,87 +3,75 @@ require 'rkn_test/version'
 
 require 'curb'
 require 'nokogiri'
-require 'thread/pool'
 require 'addressable/uri'
 
-require 'rkn_test/parse_rkn_xml'
-require 'rkn_test/rkn_downloader'
 require 'rkn_test/options'
+require 'rkn_test/rkn_parser'
 require 'rkn_test/output_data'
+require 'rkn_test/rkn_downloader'
 
 module RknTest
   class RknTest
     include OutputData
 
-    attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
-    attr_accessor :rkn_urls, :titles_urls
+    attr_accessor :not_blocked_pages, :stop_page_title,
+                  :unknown_schemes, :fixed_rkn_urls
 
     def initialize
       options = Options.new
+      @fixed_rkn_urls = []
       @unknown_schemes = []
       @not_blocked_pages = []
-      @fixed_rkn_urls = []
-      @titles_urls = {}
-      @urls_body_data = {}
-      @stop_page = options.stop_page
-      @stop_page_title = get_stop_page_title
+      @stop_page_title = get_stop_page_title(options.stop_page)
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
-      parse = RknParser.new(download_dump.rkn_dump_path)
-      fix_scheme(parse.rkn_urls)
+      parser = RknParser.new(download_dump.rkn_dump_path)
+      fix_schemes(parser.rkn_urls)
       test_urls
       display(unknown_schemes: unknown_schemes, not_blocked_pages: not_blocked_pages)
     end
 
-    def get_stop_page_title
-      page = get_url_page([stop_page])
-      abort 'Stop page does not respond' unless page.values.join == ''
-      stop_page_title = get_page_title(page.values.join)
+    def get_stop_page_title(stop_page)
+      page = get_urls_data([stop_page]).values.join
+      abort 'Stop page does not respond' if page.empty?
+      stop_page_title = get_page_title(page)
       abort 'Stop page title is empty' if stop_page_title.empty?
       stop_page_title
     end
 
-    def fix_scheme(rkn_urls)
+    def fix_schemes(rkn_urls)
       rkn_urls.each do |url|
         case Addressable::URI.parse(url).scheme
         when nil
-          @fixed_rkn_urls.push('http://' + url)
+          fixed_rkn_urls.push('http://' + url)
         when 'http', 'https'
-          @fixed_rkn_urls.push(url)
+          fixed_rkn_urls.push(url)
         else
-          @unknown_schemes.push(url)
+          unknown_schemes.push(url)
         end
       end
     end
 
-  def test_urls
-    get_url_page(fixed_rkn_urls, h)
-    h.each_pair do |k, v|
-      case v
-      when String
-        titles = get_page_title(v)
-        not_blocked_page.push(k) unless titles_equal?(titles)
-      when StandardError
-        not_blocked_page.push(k)
+    def test_urls
+      data = get_urls_data(fixed_rkn_urls)
+      data.each_pair do |url, response|
+        title = get_page_title(response)
+        not_blocked_pages.push(url) unless titles_equal?(title)
       end
     end
-  end
 
-  def get_url_page(urls)
-    data = {}
-    easy_options = { follow_location: true, timeout: 3, connect_timeout: 3 }
-    multi_options = { pipeline: true }
-    urls.each_slice(10) do |links|
-      Curl::Multi.get(links, easy_options, multi_options) do |url|
-        data[url.last_effective_url] = url.body_str
-        if url.body_str == ''
-          url.on_failure do |resp, err|
-            data[resp.last_effective_url] = err[0]
+    def get_urls_data(urls)
+      data = {}
+      easy_options = { follow_location: true, timeout: 3, connect_timeout: 3 }
+      multi_options = { pipeline: true }
+      urls.each_slice(10) do |urls_group|
+        Curl::Multi.get(urls_group, easy_options, multi_options) do |url|
+          url.on_success do |resp|
+            data[resp.last_effective_url] = resp.body_str
           end
         end
       end
+      data
     end
-    data
-  end
 
     def get_page_title(page)
       Nokogiri::HTML(page).css('title').text
