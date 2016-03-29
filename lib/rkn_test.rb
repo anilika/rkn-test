@@ -13,9 +13,6 @@ require 'rkn_test/output_data'
 
 module RknTest
   class RknTest
-    EASY_OPTIONS = { follow_location: true, timeout: 3, connect_timeout: 3 }.freeze
-    MULTI_OPTIONS = { pipeline: true }.freeze
-    
     include OutputData
 
     attr_reader :fixed_rkn_urls, :unknown_schemes, :not_blocked_pages, :stop_page, :stop_page_title
@@ -27,6 +24,7 @@ module RknTest
       @not_blocked_pages = []
       @fixed_rkn_urls = []
       @titles_urls = {}
+      @urls_body_data = {}
       @stop_page = options.stop_page
       @stop_page_title = get_stop_page_title
       download_dump = RknDownloader.new(options.request_file, options.signature_file)
@@ -37,10 +35,9 @@ module RknTest
     end
 
     def get_stop_page_title
-      page = ''
-      get_url_page(stop_page) { |url| page = url.body_str }
-      abort 'Stop page does not respond' unless page
-      stop_page_title = get_page_title(page)
+      page = get_url_page([stop_page])
+      abort 'Stop page does not respond' unless page.values.join == ''
+      stop_page_title = get_page_title(page.values.join)
       abort 'Stop page title is empty' if stop_page_title.empty?
       stop_page_title
     end
@@ -58,29 +55,35 @@ module RknTest
       end
     end
 
-    def test_urls
-      get_url_page(fixed_rkn_urls) do |url|
-        next unless page = url.body_str
-        page_title = get_page_title(page)
-        not_blocked_pages.push(url.last_effective_url) unless titles_equal?(page_title)
+  def test_urls
+    get_url_page(fixed_rkn_urls, h)
+    h.each_pair do |k, v|
+      case v
+      when String
+        titles = get_page_title(v)
+        not_blocked_page.push(k) unless titles_equal?(titles)
+      when StandardError
+        not_blocked_page.push(k)
       end
     end
+  end
 
-    def get_url_page(urls)
-      urls.each_slice(10) do |links|
-        Curl::Multi.get(links, EASY_OPTIONS, MULTI_OPTIONS) do |url|
-          begin
-            yield url
-          rescue Curl::Err::TimeoutError, Curl::Err::HostResolutionError,
-            Curl::Err::ConnectionFailedError
-            false
-          rescue StandardError
-            not_blocked_pages.push(url.last_effective_url)
-            false
+  def get_url_page(urls)
+    data = {}
+    easy_options = { follow_location: true, timeout: 3, connect_timeout: 3 }
+    multi_options = { pipeline: true }
+    urls.each_slice(10) do |links|
+      Curl::Multi.get(links, easy_options, multi_options) do |url|
+        data[url.last_effective_url] = url.body_str
+        if url.body_str == ''
+          url.on_failure do |resp, err|
+            data[resp.last_effective_url] = err[0]
           end
         end
       end
     end
+    data
+  end
 
     def get_page_title(page)
       Nokogiri::HTML(page).css('title').text
